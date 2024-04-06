@@ -1,0 +1,73 @@
+Dockerfile Nodejs sample application
+
+Creating an efficient and secure Dockerfile for a sample application involves several best practices. These include using official base images, minimizing the number of layers, organizing multi-stage builds for smaller final images, and avoiding running containers as root. Below is a sample Dockerfile tailored for a simple Node.js application, which illustrates these principles.
+
+### Sample Dockerfile for a Node.js Application
+
+Dockerfile
+# Use an official lightweight version of the Node.js base image
+FROM node:16-alpine as builder
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Copy package.json and package-lock.json (or yarn.lock) to leverage Docker cache
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install --only=production
+
+# Copy the rest of your application's source code
+COPY . .
+
+# Build your application
+RUN npm run build
+
+###
+# Only copy the necessary files for a production build
+# to minimize the image size
+###
+FROM node:16-alpine
+
+# Set non-root user and switch to it
+RUN addgroup app && adduser -S -G app
+USER app
+
+WORKDIR /app
+
+# Copy built assets from the builder stage
+COPY --from=builder /app .
+
+# The application's bind port
+EXPOSE 3000
+
+# Command to run the application
+CMD ["npm", "start"]
+
+
+### Explanation
+
+- *Base Image*: The node:16-alpine image is used due to its small size and security profile compared to fuller-fledged images. It’s from the official node repository, ensuring reliability.
+  
+- *Multi-stage Build*: This Dockerfile utilizes a multi-stage build process. The builder stage is used for compiling/building the application, while the final stage creates the production image. Only the artifacts needed for running the application are copied to the final stage. This significantly reduces the final image size.
+  
+- *WORKDIR*: Setting a working directory (/app) avoids clutter and makes it clear where the application lives inside the container.
+  
+- *Dependencies*: Dependency files (package.json and package-lock.json) are copied and installed separately before the rest of the source to take advantage of Docker's layer caching. This way, dependencies are re-fetched only if these files change.
+  
+- *Non-Root User*: Running the container as a non-root user (app) enhances security. If an attacker compromises the container, they'll have limited access rights.
+  
+- *EXPOSE*: This instruction documents which port the application listens on. While it doesn’t publish the port by itself, it makes it clear how to run the container securely using -p or --publish with Docker run.
+  
+- *CMD*: The command to run the application, npm start in this case, is clearly specified. This command is executed when the container starts, but can be overwritten with command line parameters passed to docker run.
+
+### Best Practices Summary
+
+1. *Use official, lightweight base images.*
+2. *Leverage multi-stage builds for smaller, secure final images.*
+3. *Run as a non-root user whenever possible.*
+4. **Use .dockerignore files to minimize build context (not shown but recommended).**
+5. *Organize for better caching by copying and installing dependencies before application code.*
+6. **Clearly document how to use your container (e.g., EXPOSE, CMD).**
+
+This sample Dockerfile can be tailored to fit specific applications by adjusting the base image, dependencies, and build commands according to the technology stack you are using.
